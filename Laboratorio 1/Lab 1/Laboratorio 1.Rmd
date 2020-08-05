@@ -1,0 +1,70 @@
+---
+title: "Laboratorio 1"
+author: "Marianna Flores"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r packages}
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(readxl)
+```
+
+## PROBLEMA 1: 
+
+Unificar todos los archivos en una tabla, agregar una columna de fecha, exportar archivo a excel.
+
+```{r proceso1}
+
+files <- list.files(path = "~/Lab1/Lab1", pattern = "*.xlsx", full.names = TRUE)
+
+tabla_unida <- sapply(files, FUN = read_excel, simplify = FALSE) %>% bind_rows(.id = "id")
+tabla_unida$fecha <- substr(tabla_unida$id, start = 46, stop = 52)
+df <- tabla_unida[c(2:9,12)]
+
+head(df)
+```
+Adicionalmente se creo un documento con el comando de write.csv
+
+
+## PROBLEMA 2:
+
+Crear funcion para encontrar moda
+Aplicarlo con sapply 
+
+```{r proceso2}
+
+lista <- list(vec1 <- sample(1:15, size = 20, replace = TRUE),
+              vec2 <- sample(1:15, size = 20, replace = TRUE),
+              vec3 <- sample(1:15, size = 20, replace = TRUE))
+
+moda <- function(x) {
+  numero <- unique(x)
+  cuenta <- tabulate(match(x, numero))
+  numero[cuenta == max(cuenta)]
+}
+
+lapply(lista, FUN = moda)
+```
+
+## PROBLEMA 3:
+
+Descargar archivos del parque vehicular de la pagina de la SAT
+
+```{r proceso3}
+
+parque_vehicular <-read_delim("~/Data Wrangling/Ejercicios/Laboratorio 1/INE_PARQUE_VEHICULAR_080720.txt", delim = "|")
+head(parque_vehicular)
+
+```
+
+
+
