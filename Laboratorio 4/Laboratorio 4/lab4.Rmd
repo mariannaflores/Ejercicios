@@ -1,0 +1,297 @@
+---
+title: "Laboratorio 4"
+author: "Marianna Flores"
+date: "August 29, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Situacion actual Distribuidora del Sur
+```{r librerias}
+library(tidyverse)
+library(highcharter)
+library(readr)
+library(stringr)
+df <- read_delim("tabla_completa.csv", 
+                 ",", escape_double = FALSE, trim_ws = TRUE)
+total <- as.numeric(count(df))
+total_ventas <- as.numeric(sum(df$Q))
+df$cod_cli <- substr(df$CLIENTE, 1, 10)
+dias_habiles <- round(365/7*5-10,0)
+precio <- df$Q/df$CANTIDAD
+
+```
+
+
+#### 1. Inversion en contratacion de personal
+Viajes totales por piloto
+```{r contratacion}
+pilotos <- df %>% 
+  select(PILOTO) %>% 
+  group_by(PILOTO) %>% 
+  summarise(viajes = n (), viajes_por_dia= round(viajes/dias_habiles,0), .groups = 'drop') %>% 
+  arrange(desc(viajes))
+pilotos
+```
+
+```{r contratacion2}
+pilotos2 <- df %>% 
+  select(PILOTO, MES) %>% 
+  group_by(MES) %>% 
+  summarise(viajes= n(), mensuales_por_piloto=viajes/9, .groups = 'drop')
+pilotos2
+```
+Hay meses con mas movimiento que otros pero en su mayoria no hacen mas que un viaje por dia. Es decir el personal actual los tiene cubiertos.
+```{r grafico 3}
+pilotos %>% 
+  hchart('column', hcaes(x = 'PILOTO', y = 'viajes')) %>% 
+ hc_title(text = "Viajes por piloto al año",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+ hc_tooltip(enabled = T) 
+```
+```{r grafico 4}
+pilotos2 %>% 
+  hchart('column', hcaes(x = 'MES', y = 'mensuales_por_piloto')) %>% 
+ hc_title(text = "Viajes mensuales promedio",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+ hc_tooltip(enabled = T) 
+```
+
+```{r grafico 5}
+pilotos3 <- df %>% 
+  select(PILOTO, MES) %>% 
+  group_by(MES, PILOTO) %>% 
+  summarise(viajes= n(), .groups = 'drop')
+pilotos3
+
+pilotos3 %>% 
+  hchart('bar', hcaes(x = 'PILOTO', y = 'viajes', group = 'MES')) %>% 
+ hc_title(text = "Viajes mensuales",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px"))
+```
+
+#### 2. Inversion en compra de vehiculos
+```{r vehiculos}
+tcamion <-df %>% 
+  select(UNIDAD, CANTIDAD, Q) %>% 
+  group_by(UNIDAD) %>% 
+  summarise(viajes = as.numeric(n ()), peso = viajes/total,candidades_prom = mean(CANTIDAD), cap_max = max(CANTIDAD), total = sum(Q), .groups = 'drop')
+tcamion
+```
+
+```{r grafico 6}
+tcamion %>% 
+  filter(!is.na(UNIDAD)) %>% 
+  hchart('treemap', hcaes(x = 'UNIDAD', value = 'viajes', color = 'viajes')) 
+```
+
+cantidad promedio por viaje
+```{r cprom}
+cprom <-df %>% summarise(prom= mean(CANTIDAD), mediana = median(CANTIDAD))
+cprom
+```
+La capacidad promedio que llevaron los camiones en el periodo fue de 1098 y la maxima capacidad del camion pequeño es de 1000, adicionalmente la mayor parte de los pedidos (56%) viaja en el camion grande. Por lo que se recomienda de poder invertir hacelo en otro camion grande, pues es el mas utilizado.
+
+
+#### 3. Tarifas aceptables por cliente
+```{r tarifas}
+tarifas<- df %>% 
+  select(cod_cli, CREDITO,Q, CANTIDAD) %>% 
+  group_by(cod_cli) %>% 
+  summarise(viajes = n(), total_cuenta= sum(Q), total_cantidad= sum(CANTIDAD), peso_cliente= viajes/total, precio_promedio= total_cuenta/total_cantidad, .groups = 'drop') %>% 
+  arrange(desc(total_cuenta))
+tarifas
+```
+A todos los clientes se les cobra el mismo precio por unidad de producto (0.25), lo unico que los diferencia es la cantidad de dias de credito que se le da a cada uno
+
+```{r tarifas2}
+creditos <- df %>% 
+  select(cod_cli, CREDITO, CANTIDAD) %>% 
+  group_by(cod_cli) %>% 
+  summarise(cantidad_prom= mean(CANTIDAD), credito_prom= mean(CREDITO), cantidad_max= max(CANTIDAD), credito_max= max(CREDITO), cantidad_min= min(CANTIDAD), credito_min= min(CREDITO), .groups = 'drop') %>% 
+  arrange(desc(cantidad_prom))
+creditos
+```
+El credito depende de diversos factores.
+```{r graph7}
+creditos %>% 
+  hchart('column', hcaes(x = 'cod_cli', y = 'credito_prom')) %>% 
+ hc_title(text = "Credito promedio",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+ hc_tooltip(enabled = T) 
+```
+
+```{r tarifas3}
+tarifas_credito <- df %>% 
+  select(cod_cli, CREDITO, CANTIDAD) %>% 
+  group_by(CREDITO) %>% 
+  summarise(minimo_cant= min(CANTIDAD), maximo_cant= max(CANTIDAD), .groups = 'drop')
+tarifas_credito
+```
+
+
+#### 4. Robo pilotos
+```{r robo}
+pilotos_mov <- df %>% 
+  select(PILOTO, Q, CANTIDAD) %>% 
+  group_by(PILOTO) %>%
+  summarise(viajes = n(), cantidad = sum(CANTIDAD), total = sum(Q), precio = total/cantidad, .groups = 'drop')
+pilotos_mov
+```
+Todos los pilotos manejan los mismo precios segun los viajes. El total pagado por todos los clientes de cada conductor en el año  partido el total que cobraron por el periodo. No estan robando.
+
+```{r robo2}
+tipo_transporte <- df %>% 
+  select(cod_cli, CLIENTE) 
+  
+df$tipo_envio <- word(df$CLIENTE,-1)
+envios <- df %>% 
+  select(tipo_envio) %>% 
+  group_by(tipo_envio) %>% 
+  summarise(total = n())
+envios
+
+tipo_transporte <- data.frame(c("Devolucion","Faltante", "Despacho"), c(119,712,1349))
+colnames(tipo_transporte) <- c("tipo_envio", "cantidad")
+tipo_transporte
+```
+
+```{r grafico11}
+tipo_transporte %>% 
+  hchart(type = 'pie', hcaes(tipo_envio, cantidad)) %>% 
+ hc_title(text = "Peso clientes distribuidora",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+ hc_tooltip(enabled = T) 
+```
+
+```{r ingreso}
+df2<-df
+meses_pago <- as.numeric(gsub(30, 1, df2$CREDITO))
+meses_pago <- as.numeric(gsub(60, 2, meses_pago))
+meses_pago <- as.numeric(gsub(90, 3, meses_pago))
+
+df2$mes_pago <- df2$MES+meses_pago
+ingreso_mensual <- df2 %>% 
+  select(Q, CANTIDAD, mes_pago) %>% 
+  group_by(mes_pago) %>% 
+  summarise(total_cuenta= sum(Q), total_cantidad= sum(CANTIDAD), .groups = 'drop') %>% 
+  arrange(desc(mes_pago))
+ingreso_mensual
+```
+
+```{r grafico10}
+ingreso_mensual %>% 
+  hchart('area', hcaes(x = 'mes_pago', y = 'total_cuenta')) %>% 
+  hc_title(text = "Ingresos mensuales",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px"))
+```
+
+#### 5. Estrategias
+```{r estrategias}
+estrategia <- df %>% 
+  select(UBICACION,PILOTO, cod_cli) %>% 
+  group_by(UBICACION, PILOTO) %>%
+  summarise(viajes= n(), .groups = 'drop')
+estrategia
+```
+
+```{r grafico8}
+estrategia %>% 
+  hchart('bar', hcaes(x = 'PILOTO', y = 'viajes', group = 'UBICACION')) %>% 
+ hc_title(text = "Viajes por ubicacion",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px"))
+```
+
+
+```{r estrategia2}
+estrategia2 <- df %>% 
+  select(UBICACION, CANTIDAD) %>% 
+  group_by(UBICACION) %>%
+  summarise(viajes= n(), cantidad= sum(CANTIDAD), cant_por_viaje= cantidad/viajes, .groups = 'drop')
+estrategia2
+```
+
+```{r estrategia3}
+estrategia3 <- df %>% 
+  select(UBICACION,UNIDAD) %>% 
+  group_by(UBICACION, UNIDAD) %>%
+  summarise(viajes= n(), .groups = 'drop')
+estrategia3
+```
+
+```{r estrategia4}
+estrategia4 <- df %>% 
+  select(UBICACION,cod_cli) %>% 
+  group_by(UBICACION, cod_cli) %>%
+  summarise(viajes= n(), .groups = 'drop')
+
+estrategia4 %>% 
+  hchart('bar', hcaes(x = 'cod_cli', y = 'viajes', group = 'UBICACION')) %>% 
+  hc_title(text = "Clientes por ubicacion",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px"))
+#Todas las otras imagenes de estrategia se corrieron igual pero en un r aparte por lo que no salen aqui
+
+```
+
+#### 6. Regla de pareto (80-20) de clientes
+```{r eighttwen}
+
+clientes2 <- df %>% 
+  select(cod_cli, Q) %>% 
+  group_by(cod_cli) %>% 
+  summarise(total_cuenta= sum(Q), peso_cliente= round(total_cuenta/total_ventas,2), .groups = 'drop') %>% 
+  arrange(desc(peso_cliente))
+clientes2
+```
+Las ventas no dependen el 80% del 20% de clientes pues todos los clientes equivalen a casi lo mismo
+El 80% de los resultados dependen del 70% de los clientes, no cumple con la regla de pareto.
+
+```{r graph1}
+clientes2 %>% 
+ hchart(type = 'pie', hcaes(cod_cli, peso_cliente)) %>% 
+ hc_title(text = "Peso clientes distribuidora",
+ align = "center",
+ style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+ hc_tooltip(enabled = T) 
+```
+
+#### 7. Mejores pilotos y transporte
+```{r pilotos}
+efic_pilotos <- df %>% 
+  select(PILOTO, CANTIDAD) %>% 
+  group_by(PILOTO) %>% 
+  summarise(viajes = n (), cantidad=sum(CANTIDAD), cant_pviaje=cantidad/viajes, .groups = 'drop') %>% 
+  arrange(desc(viajes))
+efic_pilotos
+```
+Los vehiculos mas eficientes como se habia visto previamente son los camiones grandes
+
+```{r grafico2}
+efic_pilotos %>% 
+  hchart('areaspline', hcaes(x = 'PILOTO', y = 'viajes'))%>% 
+  hc_title(text = "Eficiencia pilotos",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px"))
+
+```
+
+```{r grafico15}
+tcamion %>% 
+  hchart('column', hcaes(x = 'UNIDAD', y = 'viajes')) %>% 
+  hc_title(text = "Viaje promedio",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) 
+```
+
