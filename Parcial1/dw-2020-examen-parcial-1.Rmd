@@ -1,0 +1,110 @@
+---
+title: "dw-2020-parcial-1"
+author: "Marianna Flores"
+date: "9/9/2020"
+output: rmarkdown::github_document
+
+---
+
+# Examen parcial
+
+Indicaciones generales:
+
+* Usted tiene el período de la clase para resolver el examen parcial.
+* La entrega del parcial, al igual que las tareas, es por medio de su cuenta de github, pegando el link en el portal de MiU.
+
+
+* Pueden hacer uso del material del curso e internet (stackoverflow, etc.). Sin embargo, si encontramos algún indicio de copia, se anulará el exámen para los estudiantes involucrados. Por lo tanto, aconsejamos no compartir las agregaciones que generen. 
+
+## Sección I: Preguntas teóricas.
+
+* Existen 10 preguntas directas en este Rmarkdown, de las cuales usted deberá responder 5. Las 5 a responder estarán determinadas por un muestreo aleatorio basado en su número de carné.
+
+* Ingrese su número de carné en  `set.seed()` y corra el chunk de R para determinar cuáles preguntas debe responder.
+
+
+```{r, echo=TRUE, cache=TRUE}
+
+set.seed(20180040) 
+v<- 1:10
+preguntas <-sort(sample(v, size = 5, replace = FALSE ))
+
+paste0("Mis preguntas a resolver son: ",paste0(preguntas,collapse = ", "))
+
+```
+
+
+### Preguntas Teoricas
+
+3. ¿Por qué en R utilizamos funciones de la familia apply (lapply,vapply) en lugar de utilizar ciclos?
+Las funciones de R en de las librerias de lapply y vapply son mas comunes para el analisis de datos por lo que familiarizarse con el uso es altamente conveniente. Por otra parte la programacion de los ciclos puede ser compleja y que el codigo se vea menos limpio es decir que sea mas complicado manejarlo.
+
+
+5. ¿Cuál es la forma correcta de cargar un archivo de texto donde el delimitador es `:`?
+Para cargar un archivo con un delimitador especifico se debe establecer cual es destro de la funcion por ejemplo
+df <-read_delim("~/nombre_archivo.txt", delim = ":")
+Siempre es conveniente saber cual es el delimiter default de la computadora e incluso de la region para despues no tener inconvenientes y saber cuando se debe especificar como en el caso de ":"
+
+
+7. ¿Qué pasa si quiero agregar una nueva categoría a un factor que no se encuentra en los niveles existentes?
+Se debe de agregar al final de los niveles ya existentes o especificar que nivel se va a modificar por esta nueva variable. Dependiendo del tipo de estructura al que se esta agregando esta nueva categoria/unidad, si el sistema lo puede procesar. En el caso un vector no se puede agregar una nueva categoria de un nivel que no se tiene, en otras estructuras si es posible como en un string.
+
+
+8. Si en un dataframe, a una variable de tipo `factor` le agrego un nuevo elemento que *no se encuentra en los niveles existentes*, ¿cuál sería el resultado esperado y por qué?
+    * El nuevo elemento
+    * `NA`
+Si se agrega a una nueva celda/variable un elemento de un tipo distinto al que ya habia en el data frame (digamos texto a una columna de factor) se va a guardar el nuevo elemento nuevo. Por ser un dataframe cada variable funciona por aparte, en el caso de un vector si daria un error, pero por ser df se agrega con normalidad a los datos que ya se tienen. 
+  
+    
+10. Si quiero obtener como resultado las filas de la tabla A que no se encuentran en la tabla B, ¿cómo debería de completar la siguiente sentencia de SQL?
+
+    * SELECT * FROM A LEFTJOIN B ON A.KEY = B.KEY WHERE B.KEY IS NULL
+  
+Extra: ¿Cuántos posibles exámenes de 5 preguntas se pueden realizar utilizando como banco las diez acá presentadas?
+Hay 252 posibilidades
+```{r comb}
+cantidad <- combn(v,5, simplify = FALSE)
+```
+
+## Sección II Preguntas prácticas.
+* Conteste las siguientes preguntas utilizando sus conocimientos de R. Adjunte el código que utilizó para llegar a sus conclusiones en un chunk del markdown.
+
+## A
+De los clientes que están en más de un país,¿cuál cree que es el más rentable y por qué?
+
+```{r a}
+
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(readxl)
+
+df <-read_rds("~/Data Wrangling/Ejercicios/Parcial1/parcial_anonimo.rds")
+head(df)
+
+clientes_totales <- df %>% 
+  select(Pais, Cliente, Venta) %>% 
+  group_by(Cliente, Pais) %>% 
+  summarise(ventas = sum(Venta), count_duplicates,.groups = 'drop')
+
+
+```
+
+
+
+
+## B
+Estrategia de negocio ha decidido que ya no operará en aquellos territorios cuyas pérdidas sean "considerables". Bajo su criterio, ¿cuáles son estos territorios y por qué ya no debemos operar ahí?
+
+```{r b}
+total <- df %>% summarise(sum(Venta))
+
+territorios <- df %>% 
+  select(Territorio, Venta, 10) %>% 
+  group_by(Territorio) %>% 
+  summarise(ingresos = sum(Venta),porcentaje = ingresos/6286229, .groups = 'drop') %>% arrange(ingresos)
+
+territorios
+
+```
+En este momento se desconocen los costos totales que indican para la empresa las ventas, La mayoria (casi 50%) de los territorios vende mas de 10000 por lo que se considera prudente dejar esos territorios que no representan ni un 1%
