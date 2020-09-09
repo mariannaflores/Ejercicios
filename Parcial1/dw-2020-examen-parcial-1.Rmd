@@ -21,7 +21,9 @@ Indicaciones generales:
 * Existen 10 preguntas directas en este Rmarkdown, de las cuales usted deberá responder 5. Las 5 a responder estarán determinadas por un muestreo aleatorio basado en su número de carné.
 
 * Ingrese su número de carné en  `set.seed()` y corra el chunk de R para determinar cuáles preguntas debe responder.
-
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
 
 ```{r, echo=TRUE, cache=TRUE}
 
@@ -80,16 +82,18 @@ library(tidyverse)
 library(readxl)
 
 df <-read_rds("~/Data Wrangling/Ejercicios/Parcial1/parcial_anonimo.rds")
-head(df)
 
 clientes_totales <- df %>% 
   select(Pais, Cliente, Venta) %>% 
   group_by(Cliente, Pais) %>% 
-  summarise(ventas = sum(Venta), count_duplicates,.groups = 'drop')
+  summarise(ventas = sum(Venta), .groups = 'drop') %>% 
+  arrange(desc(ventas)) 
 
+clientes_totales
 
 ```
-
+El cliente mas rentable es f217abbd
+*Lo trate de calcular manual porque ya no tenia tiempo, por eso no hay mas proceso
 
 
 
