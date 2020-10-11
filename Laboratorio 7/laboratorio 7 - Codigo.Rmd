@@ -1,0 +1,450 @@
+---
+title: "Laboratorio 7"
+author: "Marianna Flores"
+date: "October 5, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE)
+library(tidyverse)
+library(highcharter)
+library(readr)
+library(readxl)
+library(reshape2)
+library(lubridate)
+library(shiny)
+library(RColorBrewer)
+library(viridisLite)
+library(openxlsx)
+```
+
+dataset
+```{r ds}
+df <- read_delim("c1.csv", 
+                 ",", escape_double = FALSE, trim_ws = TRUE)
+cols <- brewer.pal(3, "Blues")
+cols2 <- brewer.pal(9, "Blues")
+
+tiempos <- df %>% 
+  melt(id.vars = c("ID", "Cod", "origen", "factura", "directoCamion_5", "directoPickup", "directoMoto", "fijoCamion_5", "fijoPickup", "fijoMoto", "height"), measure.vars = c("5-30", "30-45", "45-75", "75-120", "120+"))
+names(tiempos)[names(tiempos) == "variable"] <- "tiempo"
+names(tiempos)[names(tiempos) == "value"] <- "t"
+
+df2 <- tiempos %>% 
+  select(ID, Cod, origen, factura, directoCamion_5, directoPickup, directoMoto, fijoCamion_5, fijoPickup, fijoMoto, height, tiempo, t) %>% 
+  filter(t == "x")
+
+directos <- df2 %>% 
+  melt(id.vars = c("ID", "Cod", "origen", "factura", "fijoCamion_5", "fijoPickup", "fijoMoto", "height", "tiempo"), measure.vars = c("directoCamion_5", "directoPickup", "directoMoto"))
+names(directos)[names(directos) == "variable"] <- "costos_directos"
+names(directos)[names(directos) == "value"] <- "cd"
+
+df3 <- directos %>% 
+  select(ID, Cod, origen, factura, fijoCamion_5, fijoPickup, fijoMoto, height, tiempo, costos_directos, cd) %>% 
+  filter(cd != 0.00)
+
+fijos <- df3 %>% 
+  melt(id.vars = c("ID", "Cod", "origen", "factura", "height", "tiempo", "costos_directos", "cd"), measure.vars = c("fijoCamion_5", "fijoPickup", "fijoMoto"))
+names(fijos)[names(fijos) == "variable"] <- "costos_fijos"
+names(fijos)[names(fijos) == "value"] <- "cf"
+
+df4 <- fijos %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  filter(cf != 0.00)
+
+total = 263725
+ingresos_totales <- 36688096
+utilidad_operacion <- 8514077
+```
+
+## ESTADO RESULTADOS
+```{r er}
+estado_resultados_Pickup <- df %>% 
+  select(ID, factura, directoCamion_5, directoPickup, directoMoto, fijoCamion_5, fijoPickup, fijoMoto, height) %>% 
+  filter(directoPickup > 0) %>% 
+  summarise(ingresos = sum(factura), Directos = sum(directoPickup)+sum(directoMoto)+sum(directoCamion_5), Fijos = sum(fijoCamion_5)+sum(fijoMoto)+sum(fijoPickup), UtOperacion = ingresos-Directos-Fijos, n = n())
+estado_resultados_Pickup$vehiculo <- "Pickup"
+
+estado_resultados_camion <- df %>% 
+  select(ID, factura, directoCamion_5, directoPickup, directoMoto, fijoCamion_5, fijoPickup, fijoMoto, height) %>% 
+  filter(directoCamion_5 > 0) %>% 
+  summarise(ingresos = sum(factura), Directos = sum(directoPickup)+sum(directoMoto)+sum(directoCamion_5), Fijos = sum(fijoCamion_5)+sum(fijoMoto)+sum(fijoPickup), UtOperacion = ingresos-Directos-Fijos, n = n())
+estado_resultados_camion$vehiculo <- "Camion"
+
+estado_resultados_moto <- df %>% 
+  select(ID, factura, directoCamion_5, directoPickup, directoMoto, fijoCamion_5, fijoPickup, fijoMoto, height) %>% 
+  filter(directoMoto > 0) %>% 
+  summarise(ingresos = sum(factura), Directos = sum(directoPickup)+sum(directoMoto)+sum(directoCamion_5), Fijos = sum(fijoCamion_5)+sum(fijoMoto)+sum(fijoPickup), UtOperacion = ingresos-Directos-Fijos, n = n())
+estado_resultados_moto$vehiculo <- "Moto"
+
+estado_resultados_vehiculo <- rbind(estado_resultados_Pickup,estado_resultados_camion,estado_resultados_moto)
+estado_resultados_vehiculo
+```
+
+
+```{r er2}
+estado_resultados_origen <- df %>% 
+  select(ID, origen, factura, directoCamion_5, directoPickup, directoMoto, fijoCamion_5, fijoPickup, fijoMoto, height) %>% 
+  group_by(origen) %>% 
+  summarise(ingresos = sum(factura), Directos = sum(directoPickup)+sum(directoMoto)+sum(directoCamion_5), Fijos = sum(fijoCamion_5)+sum(fijoMoto)+sum(fijoPickup), UtOperacion = ingresos-Directos-Fijos, n = n(), .groups = 'drop')
+estado_resultados_origen
+
+estado_resultados_origen$origen <- as.character(estado_resultados_origen$origen)
+```
+
+```{r er3}
+estado_resultados <- df %>% 
+  select(ID, factura, directoCamion_5, directoPickup, directoMoto, fijoCamion_5, fijoPickup, fijoMoto, height) %>% 
+  summarise(ingresos = sum(factura), Directos = sum(directoPickup)+sum(directoMoto)+sum(directoCamion_5), Fijos = sum(fijoCamion_5)+sum(fijoMoto)+sum(fijoPickup), UtOperacion = ingresos-Directos-Fijos, .groups = 'drop')
+
+estado_resultados_pCod <- df %>% 
+  select(Cod, factura, directoCamion_5, directoPickup, directoMoto, fijoCamion_5, fijoPickup, fijoMoto, height) %>% 
+  group_by(Cod) %>% 
+  summarise(ingresos = sum(factura), Directos = sum(directoPickup)+sum(directoMoto)+sum(directoCamion_5), Fijos = sum(fijoCamion_5)+sum(fijoMoto)+sum(fijoPickup), UtOperacion = ingresos-Directos-Fijos, n = n(), .groups = 'drop')
+estado_resultados_pCod
+```
+
+### GRAFICOS ER
+```{r g1}
+estado_resultados_vehiculo %>% 
+  hchart('column', hcaes(x = 'vehiculo', y = 'UtOperacion')) %>% 
+  hc_title(text = "Utilidad por vehiculo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+estado_resultados_origen %>% 
+  hchart('column', hcaes(x = 'origen', y = 'UtOperacion')) %>% 
+  hc_title(text = "Utilidad por origen",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+estado_resultados_pCod %>% 
+  hchart('column', hcaes(x = 'Cod', y = 'UtOperacion')) %>% 
+  hc_title(text = "Utilidad por Cod",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+```
+
+## TARIFARIO
+```{r tarifario}
+tarifario_cod <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(Cod) %>% 
+  summarise(factura = mean(factura), cd = mean(cd), cf = mean(cf)) %>% 
+  arrange(desc(factura))
+tarifario_cod
+```
+
+```{r tarif2}
+tarifario_origen <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(origen) %>% 
+  summarise(factura = mean(factura), cd = mean(cd), cf = mean(cf), .groups = 'drop') %>% 
+  arrange(desc(factura))
+
+tarifario_height <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(height) %>% 
+  summarise(factura = mean(factura), cd = mean(cd), cf = mean(cf), .groups = 'drop')
+#no hay correlacion con precios
+
+tarifario_tiempo <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(tiempo) %>% 
+  summarise(factura = mean(factura), cd = mean(cd), cf = mean(cf), costo_total = cd+cf, utilidad = factura-costo_total, porcentaje_ingreso = utilidad/factura, .groups = 'drop') %>% 
+  arrange(desc(factura))
+tarifario_tiempo
+
+tarifario_vehiculo <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(costos_directos) %>% 
+  summarise(factura = mean(factura), cd = mean(cd), cf = mean(cf), n = n(), .groups = 'drop') %>% 
+  arrange(desc(factura))
+#no hay correlacion con el tipo de vehiculo
+```
+
+### GRAFICOS TARIFARIO
+```{R G5}
+tarifario_tiempo %>% 
+  hchart('column', hcaes(x = 'tiempo', y = 'factura')) %>% 
+  hc_title(text = "Tarifario por tiempo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+tarifario_cod %>% 
+  hchart('column', hcaes(x = 'Cod', y = 'factura')) %>% 
+  hc_title(text = "Tarifario por Cod",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+```
+
+## INGRESOS
+```{r ingresos}
+ingresos_height <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(height) %>% 
+  summarise(factura = sum(factura), cd = sum(cd), cf = sum(cf), porcentaje_ingresos = factura/ingresos_totales, utop = factura-cf-cd, porcen_utingresos = utop/factura, .groups = 'drop')
+
+ingresos_Cod <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(Cod) %>% 
+  summarise(factura = sum(factura), cd = sum(cd), cf = sum(cf), costos_totales = cd+cf, porcentaje_ingresos = factura/ingresos_totales, utop = factura-cf-cd, porcen_utingresos = utop/factura, .groups = 'drop') %>% 
+  arrange(desc(porcentaje_ingresos))
+
+ingresos_vehiculo <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(costos_directos) %>% 
+  summarise(factura = sum(factura), cd = sum(cd), cf = sum(cf), n = n(), porcentaje_ingresos = factura/ingresos_totales, utop = factura-cf-cd, porcen_utingresos = utop/factura, .groups = 'drop') %>% 
+  arrange(desc(n))
+
+ingresos_tiempo <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(tiempo) %>% 
+  summarise(factura = sum(factura), cd = sum(cd), cf = sum(cf), n = n(), porcentaje_ingresos = factura/ingresos_totales, utop = factura-cf-cd, porcen_utingresos = utop/factura, .groups = 'drop') %>% 
+  arrange(desc(n))
+
+ingresos_ID <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(ID) %>% 
+  summarise(factura = sum(factura), cd = sum(cd), cf = sum(cf), n = n(), porcentaje_ingresos = factura/ingresos_totales, utop = factura-cf-cd, porcen_utingresos = utop/factura, .groups = 'drop') %>% 
+  arrange(desc(n))
+```
+
+### GRAFICOS INGRESOS
+```{r g3}
+ingresos_Cod %>% 
+  hchart(type = 'pie', hcaes(Cod, porcentaje_ingresos)) %>% 
+  hc_title(text = "Ingresos por cod",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols2)
+
+ingresos_tiempo %>% 
+  hchart(type = 'pie', hcaes(tiempo, porcentaje_ingresos)) %>% 
+  hc_title(text = "Ingresos por tiempo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T)  %>% 
+  hc_colors(cols2)
+
+ingresos_vehiculo %>% 
+  hchart(type = 'pie', hcaes(costos_directos, porcentaje_ingresos)) %>% 
+  hc_title(text = "Ingresos por vehiculo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+```
+
+## MANTENIMIENTO
+```{r mantenimientos}
+mantenimiento_height <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(height) %>% 
+  summarise(n = n(), porcentaje = n/total, .groups = 'drop') %>% 
+  arrange(desc(n))
+
+mantenimiento_Cod <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(Cod) %>% 
+  summarise(n = n(), porcentaje = n/total, .groups = 'drop') %>% 
+  arrange(desc(n))
+
+mantenimiento_ID <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(ID) %>% 
+  summarise(n = n(), porcentaje = n/total, .groups = 'drop') %>% 
+  arrange(desc(n))
+
+mantenimiento_tiempo <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(tiempo) %>% 
+  summarise(n = n(), porcentaje = n/total, .groups = 'drop') %>% 
+  arrange(desc(n))
+```
+
+### GRAFICOS MANTENIMIENTO
+```{r g4}
+mantenimiento_tiempo %>% 
+  hchart('column', hcaes(x = 'tiempo', y = 'n')) %>% 
+  hc_title(text = "Visitas por tiempo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+mantenimiento_Cod %>% 
+  hchart('column', hcaes(x = 'Cod', y = 'n')) %>% 
+  hc_title(text = "Visitas por cod",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+```
+
+## PERDIDAS
+```{r peridas}
+perdidas_Cod <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(Cod) %>% 
+  summarise(factura = min(factura), cf = mean(cf), utilidad = factura-cf, .groups = 'drop') %>% 
+  arrange(desc(utilidad))
+
+
+perdidas_Vehiculo <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, costos_fijos, cf) %>% 
+  group_by(costos_directos) %>% 
+  summarise(factura = min(factura), cf = mean(cf), utilidad = factura-cf, .groups = 'drop') %>% 
+  arrange(desc(utilidad))
+```
+
+### GRAFICOS PERDIDAS
+```{r graficos}
+perdidas_Vehiculo %>% 
+  hchart('bar', hcaes(x = 'costos_directos', y = 'utilidad')) %>% 
+  hc_title(text = "Perdidas por Vehiculo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+perdidas_Cod %>% 
+  hchart('column', hcaes(x = 'Cod', y = 'factura')) %>% 
+  hc_title(text = "Perdidas por Cod",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+```
+
+## ESTRATEGIAS
+```{r estrategias}
+E1 <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, cf) %>% 
+  group_by(Cod, tiempo) %>% 
+  summarise(n = n(), factura = sum(factura), cd = sum(cd), cf = sum(cf), .groups = 'drop')
+
+E2 <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, cf) %>% 
+  group_by(costos_directos, tiempo) %>% 
+  summarise(n = n(), factura = sum(factura), cd = sum(cd), cf = sum(cf), .groups = 'drop')
+
+E3 <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, cf) %>% 
+  group_by(origen, costos_directos) %>% 
+  summarise(n = n(), factura = sum(factura), cd = sum(cd), cf = sum(cf), .groups = 'drop')
+
+E4 <- df4 %>% 
+  select(ID, Cod, origen, factura, height, tiempo, costos_directos, cd, cf) %>% 
+  group_by(costos_directos) %>% 
+  summarise(n = n(), factura = sum(factura), cd = sum(cd), cf = sum(cf), .groups = 'drop')
+
+```
+
+### GRAFICOS ESTRATEGIA
+```{r g2}
+E1 %>% 
+  hchart('column', hcaes(x = 'tiempo', y = 'n', group = 'Cod')) %>% 
+  hc_title(text = "Visitas por cod",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+E2 %>% 
+  hchart('column', hcaes(x = 'tiempo', y = 'n', group = 'costos_directos')) %>% 
+  hc_title(text = "Visitas por tiempo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+E3$origen <- as.character(E3$origen)
+E3 %>% 
+  hchart('column', hcaes(x = 'origen', y = 'n', group = 'costos_directos')) %>% 
+  hc_title(text = "Visitas por tiempo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+
+E4 %>% 
+  hchart('column', hcaes(x = 'costos_directos', y = 'n')) %>% 
+  hc_title(text = "Visitas por tiempo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)
+```
+
+## FECHAS Y RECORRIDOS
+```{r fechasyrecorridos}
+a <- convertToDateTime(df$Fecha, origin = "1900-01-01")
+b <- dmy(df$Fecha) 
+a[is.na(a)] <- b[!is.na(b)] 
+df$Fecha <- a 
+
+df$mes <- month(df$Fecha)
+recorridos <- df %>% select(mes, origen) %>% group_by(mes, origen) %>% summarise(n = n(), .groups = 'drop')
+df$dias <- weekdays(df$Fecha)
+recorridos2 <- df %>% select(dias, mes) %>% group_by(mes, dias) %>% summarise(n = n(), .groups = 'drop')
+
+
+recorridos %>% 
+  hchart('column', hcaes(x = 'mes', y = 'n', group = origen)) %>% 
+  hc_title(text = "Visitas mensuales",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols2)
+
+
+recorridos2 %>% 
+  hchart('column', hcaes(x = 'mes', y = 'n', group = dias)) %>% 
+  hc_title(text = "Visitas diarias",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols2)
+```
+
+## COSTOS
+```{r costos}
+directos <- df4 %>% 
+  select(costos_directos, cd, cf, height) %>% 
+  group_by(costos_directos) %>% 
+  summarise(cd = mean(cd), .groups = 'drop')
+
+directos %>% 
+  hchart('column', hcaes(x = 'costos_directos', y = 'cd')) %>% 
+  hc_title(text = "costos directos por vehiculo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)  
+
+fijos <- df4 %>% 
+  select(costos_directos, cd, cf, height) %>% 
+  group_by(costos_directos) %>% 
+  summarise(cf = mean(cf), .groups = 'drop')
+         
+fijos %>% 
+  hchart('column', hcaes(x = 'costos_directos', y = 'cf')) %>% 
+  hc_title(text = "costos fijos por vehiculo",
+           align = "center",
+           style = list(fontWeight = "bold", fontSize = "30px")) %>% 
+  hc_tooltip(enabled = T) %>% 
+  hc_colors(cols)       
+```
